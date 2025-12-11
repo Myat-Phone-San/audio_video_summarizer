@@ -47,7 +47,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
     Returns: (analysis_result_text, detected_language_code)
     """
     
-    st.info(f"Step 1/2: Uploading file **{uploaded_file.name}** to Gemini API...")
+    st.info(f"Step 1/2: Uploading file **{uploaded_file.name}**")
     
     uploaded_file.seek(0)
     temp_path = None
@@ -62,7 +62,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
         # 1. Upload the file to the Gemini File API
         # FIX APPLIED: Removed 'mime_type' keyword argument. The SDK handles detection.
         gemini_file = client.files.upload(file=temp_path)
-        st.success(f"File uploaded successfully. URI: {gemini_file.uri}")
+        st.success(f"File uploaded successfully.")
 
         # --- Dynamic Prompts ---
         system_instruction = (
@@ -83,7 +83,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
         )
 
         # 2. Call Gemini for Transcription and Summarization
-        st.info(f"Step 2/2: Sending file to **{MODEL_NAME}** for analysis...")
+        st.info(f"Step 2/2: Sending file to AI model for analysis...")
         start_time = time.time()
         
         response = client.models.generate_content(
@@ -98,10 +98,10 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
         end_time = time.time()
         st.success(f"Analysis completed in {end_time - start_time:.2f} seconds.")
         
-        return response.text, "Unknown (Handled by Gemini)"
+        return response.text, "Unknown"
             
     except GeminiAPIError as e: 
-        st.error(f"Gemini API Call Failed: {e}")
+        st.error(f"API Call Failed: {e}")
         return "Analysis failed due to API connection error.", ""
     except Exception as e:
         # This will now catch other errors, including if the API returns an error on file upload
@@ -114,7 +114,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
             try:
                 client.files.delete(name=gemini_file.name)
             except Exception as e:
-                st.warning(f"Could not delete uploaded file from Gemini API. Please check the files dashboard if necessary. Error: {e}")
+                st.warning(f"Could not delete uploaded file. Please check the files dashboard if necessary. Error: {e}")
 
         # Clean up the temporary local file
         if temp_path and os.path.exists(temp_path):
@@ -122,7 +122,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
 
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Universal Video/Audio Summarizer (Gemini 2.5 Flash)", layout="centered")
+st.set_page_config(page_title="Video/Audio Summarizer)", layout="centered")
 
 st.markdown("""
 <style>
@@ -150,9 +150,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.markdown(f'<h1 class="main-header">🎙️ Universal Video/Audio Summarizer (**{MODEL_NAME}**)</h1>', unsafe_allow_html=True)
+st.markdown(f'<h1 class="main-header">🎙️Video/Audio Summarizer</h1>', unsafe_allow_html=True)
 # --- CHANGE: Updated Model Note ---
-st.info("⚡ **Model Note:** Using **Gemini 2.5 Flash** for a faster and more cost-effective solution. This model supports multilingual transcription and summarization.")
+st.info("⚡System supports multilingual transcription and summarization.")
 st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. Gemini will automatically transcribe it and provide a key point summary.")
 
 # File Uploader

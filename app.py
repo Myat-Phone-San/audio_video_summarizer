@@ -32,7 +32,8 @@ except Exception as e:
     st.stop()
     
 # Model name used for transcription and summarization
-MODEL_NAME = "gemini-2.5-pro" 
+# --- CHANGE: Using the faster/free tier model ---
+MODEL_NAME = "gemini-2.5-flash" 
 
 
 # --- Utility Function: Core Logic ---
@@ -40,7 +41,7 @@ MODEL_NAME = "gemini-2.5-pro"
 def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[str], str]:
     """
     1. Uploads the audio/video file to the Gemini File API.
-    2. Sends the file to Gemini 2.5 Pro for transcription and summarization.
+    2. Sends the file to the chosen Gemini model for transcription and summarization.
     3. Deletes the file from the File API after use.
     
     Returns: (analysis_result_text, detected_language_code)
@@ -81,12 +82,12 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
             "[The 5 key points in bullet-point format, using the primary language of the speech in the audio/video]"
         )
 
-        # 2. Call Gemini 2.5 Pro for Transcription and Summarization
+        # 2. Call Gemini for Transcription and Summarization
         st.info(f"Step 2/2: Sending file to **{MODEL_NAME}** for analysis...")
         start_time = time.time()
         
         response = client.models.generate_content(
-            model=MODEL_NAME,
+            model=MODEL_NAME, # Using gemini-2.5-flash
             contents=[user_query, gemini_file], # Pass both the prompt and the file part
             config=types.GenerateContentConfig( 
                 system_instruction=system_instruction,
@@ -121,7 +122,7 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
 
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Universal Video/Audio Summarizer (Gemini 2.5 Pro)", layout="centered")
+st.set_page_config(page_title="Universal Video/Audio Summarizer (Gemini 2.5 Flash)", layout="centered")
 
 st.markdown("""
 <style>
@@ -150,8 +151,9 @@ st.markdown("""
 
 
 st.markdown(f'<h1 class="main-header">🎙️ Universal Video/Audio Summarizer (**{MODEL_NAME}**)</h1>', unsafe_allow_html=True)
-st.success("✨ **Model Note:** Using **Gemini 2.5 Pro** to perform multilingual transcription and summarization directly.")
-st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. Gemini 2.5 Pro will automatically transcribe it and provide a key point summary.")
+# --- CHANGE: Updated Model Note ---
+st.info("⚡ **Model Note:** Using **Gemini 2.5 Flash** for a faster and more cost-effective solution. This model supports multilingual transcription and summarization.")
+st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. Gemini will automatically transcribe it and provide a key point summary.")
 
 # File Uploader
 # File types for the Streamlit file uploader (extensions)
@@ -190,12 +192,12 @@ if uploaded_file is not None:
             st.error("File size limit exceeded. Please upload a file smaller than 50MB for reliable processing via the File API.")
         else:
             # Main processing function call
-            with st.spinner("Processing with Gemini 2.5 Pro..."):
+            with st.spinner(f"Processing with {MODEL_NAME}..."):
                 analysis_result, _ = analyze_media_with_gemini(uploaded_file, mime_type)
             
             # Display the result (which is already formatted with Markdown headings)
             if analysis_result and not analysis_result.startswith("Analysis failed"):
                 st.markdown(analysis_result)
-                st.success("Process complete: Transcription and Summary extracted by Gemini 2.5 Pro.")
+                st.success(f"Process complete: Transcription and Summary extracted by {MODEL_NAME}.")
             else:
                 st.error("The analysis failed. Please check the error messages above for details.")

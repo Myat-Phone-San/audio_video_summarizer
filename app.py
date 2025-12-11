@@ -192,7 +192,7 @@ if uploaded_file is not None:
             st.error("File size limit exceeded. Please upload a file smaller than 50MB for reliable processing via the File API.")
         else:
             # Main processing function call
-            with st.spinner(f"Processing with {MODEL_NAME}..."):
+            with st.spinner(f"Processing with Model..."):
                 analysis_result, _ = analyze_media_with_gemini(uploaded_file, mime_type)
             
             # Display the result (which is already formatted with Markdown headings)

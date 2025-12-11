@@ -153,7 +153,7 @@ st.markdown("""
 st.markdown(f'<h1 class="main-header">🎙️Video/Audio Summarizer</h1>', unsafe_allow_html=True)
 # --- CHANGE: Updated Model Note ---
 st.info("⚡System supports multilingual transcription and summarization.")
-st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. Gemini will automatically transcribe it and provide a key point summary.")
+st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. System will automatically transcribe it and provide a key point summary.")
 
 # File Uploader
 # File types for the Streamlit file uploader (extensions)

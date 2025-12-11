@@ -34,11 +34,8 @@ except Exception as e:
 # Model name used for transcription and summarization
 MODEL_NAME = "gemini-2.5-pro" 
 
-# Define language codes for dynamic prompts (only needed for the final summarization prompt)
-LANG_CODE_MY = "my" # ISO code for Burmese/Myanmar
 
-
-# --- Utility Functions ---
+# --- Utility Function: Core Logic ---
 
 def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[str], str]:
     """
@@ -46,28 +43,27 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
     2. Sends the file to Gemini 2.5 Pro for transcription and summarization.
     3. Deletes the file from the File API after use.
     
-    Returns: (summary_text, detected_language_code)
+    Returns: (analysis_result_text, detected_language_code)
     """
     
     st.info(f"Step 1/2: Uploading file **{uploaded_file.name}** to Gemini API...")
     
     uploaded_file.seek(0)
-    temp_file = None
+    temp_path = None
     
     try:
         # Create a temporary file on disk for the SDK to upload
-        # This is the most reliable way to handle Streamlit's UploadedFile object
         file_suffix = os.path.splitext(uploaded_file.name)[1]
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmp_file:
             tmp_file.write(uploaded_file.read())
             temp_path = tmp_file.name
         
         # 1. Upload the file to the Gemini File API
-        gemini_file = client.files.upload(file=temp_path, mime_type=mime_type)
+        # FIX APPLIED: Removed 'mime_type' keyword argument. The SDK handles detection.
+        gemini_file = client.files.upload(file=temp_path)
         st.success(f"File uploaded successfully. URI: {gemini_file.uri}")
 
         # --- Dynamic Prompts ---
-        # Ask Gemini to perform both transcription and summarization
         system_instruction = (
             "You are a professional audio/video summarizer. Your task is two-fold: "
             "1. First, create a complete, accurate, and detailed **TRANSCRIPT** of the entire audio content. "
@@ -75,7 +71,6 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
             "You MUST output the result in the following structured format, and use the detected language of the media for the SUMMARY (Burmese, English, etc.):"
         )
         
-        # User prompt asks the model to perform the task and structure the output
         user_query = (
             "Please analyze the provided file. First, generate the full transcript. "
             "Second, provide a concise summary (5 key points). "
@@ -102,22 +97,26 @@ def analyze_media_with_gemini(uploaded_file, mime_type: str) -> Tuple[Optional[s
         end_time = time.time()
         st.success(f"Analysis completed in {end_time - start_time:.2f} seconds.")
         
-        return response.text, "Unknown (Gemini handles multilingual transcription)"
+        return response.text, "Unknown (Handled by Gemini)"
             
     except GeminiAPIError as e: 
         st.error(f"Gemini API Call Failed: {e}")
         return "Analysis failed due to API connection error.", ""
     except Exception as e:
+        # This will now catch other errors, including if the API returns an error on file upload
         st.error(f"An unexpected error occurred: {e}")
         return "Analysis failed due to an unexpected error.", ""
     finally:
         # 3. Clean up: Delete the file from the Gemini File API
         if 'gemini_file' in locals():
             st.info(f"Cleaning up: Deleting file from API: {gemini_file.name}")
-            client.files.delete(name=gemini_file.name)
-        
+            try:
+                client.files.delete(name=gemini_file.name)
+            except Exception as e:
+                st.warning(f"Could not delete uploaded file from Gemini API. Please check the files dashboard if necessary. Error: {e}")
+
         # Clean up the temporary local file
-        if 'temp_path' in locals() and os.path.exists(temp_path):
+        if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
 
 
@@ -151,16 +150,10 @@ st.markdown("""
 
 
 st.markdown(f'<h1 class="main-header">🎙️ Universal Video/Audio Summarizer (**{MODEL_NAME}**)</h1>', unsafe_allow_html=True)
-st.success("✨ **Model Note:** Using the powerful **Gemini 2.5 Pro** model to perform both transcription and summarization directly, removing the need for Whisper AI.")
-st.write("Upload **any** video or audio file. Gemini 2.5 Pro will automatically transcribe it and provide a key point summary in the detected language.")
+st.success("✨ **Model Note:** Using **Gemini 2.5 Pro** to perform multilingual transcription and summarization directly.")
+st.write("Upload **any** video or audio file (e.g., MP3, MP4, WAV) up to **50MB**. Gemini 2.5 Pro will automatically transcribe it and provide a key point summary.")
 
 # File Uploader
-# List of common MIME types for audio and video
-ALL_MEDIA_MIME_TYPES = [
-    "audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg", "audio/flac", "audio/m4a",
-    "video/mp4", "video/quicktime", "video/webm", "video/x-flv", "video/x-ms-wmv"
-]
-
 # File types for the Streamlit file uploader (extensions)
 ALL_MEDIA_EXTENSIONS = [
     "mp4", "mov", "wav", "mp3", "m4a", "mkv", "avi", "flv", "wmv", 
@@ -174,10 +167,11 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    # Determine MIME type (Streamlit's file_uploader provides this)
+    # Determine MIME type 
     mime_type = uploaded_file.type 
+    
+    # Fallback to determine MIME type from extension if Streamlit's detection is generic
     if not mime_type or 'octet-stream' in mime_type:
-        # Fallback to determine MIME type from extension if Streamlit is generic
         ext = os.path.splitext(uploaded_file.name)[1].lower().replace('.', '')
         if ext == 'mp3': mime_type = 'audio/mpeg'
         elif ext == 'wav': mime_type = 'audio/wav'
@@ -191,15 +185,17 @@ if uploaded_file is not None:
     
     if st.button("Generate Transcript and Summary"):
         
-        if uploaded_file.size > (50 * 1024 * 1024): # 50 MB limit for File API via direct upload
-            st.error("File size limit exceeded. Please upload a file smaller than 50MB. For larger files, you must use the File API with a proper pre-upload workflow not implemented here.")
+        # Check size limit (Gemini File API limit)
+        if uploaded_file.size > (50 * 1024 * 1024): 
+            st.error("File size limit exceeded. Please upload a file smaller than 50MB for reliable processing via the File API.")
         else:
+            # Main processing function call
             with st.spinner("Processing with Gemini 2.5 Pro..."):
                 analysis_result, _ = analyze_media_with_gemini(uploaded_file, mime_type)
             
-            # Display the result (which is already formatted with headings)
+            # Display the result (which is already formatted with Markdown headings)
             if analysis_result and not analysis_result.startswith("Analysis failed"):
                 st.markdown(analysis_result)
                 st.success("Process complete: Transcription and Summary extracted by Gemini 2.5 Pro.")
             else:
-                st.error("The analysis failed. Please check the error messages above.")
+                st.error("The analysis failed. Please check the error messages above for details.")
